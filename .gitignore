@@ -3,4 +3,5 @@ __pycache__/
 .env
 logs/
 *.log
+*.pt
 turret-env/
