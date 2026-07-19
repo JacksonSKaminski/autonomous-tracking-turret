@@ -8,6 +8,9 @@ USE_PI_CAMERA = False
 class Camera:
     #Initialize Camera 
     def __init__(self):
+        self.prevTime = None
+        self.fps = 0.0
+
         if (USE_PI_CAMERA):
             raise NotImplementedError("Pi camera not implemented yet")
         
@@ -16,6 +19,13 @@ class Camera:
 
     #Get a frame
     def get_frame(self):
+        now = time.time()
+
+        #Fps Calculation
+        if self.prevTime is not None:
+            self.fps = 1.0 / (now - self.prevTime)
+        self.prevTime = now
+        
         if (USE_PI_CAMERA):
             raise NotImplementedError("Pi camera not implemented yet")
         
@@ -33,31 +43,27 @@ class Camera:
         self.cap.release()  
         cv.destroyAllWindows()
 
-camera = Camera()
-previousTime = time.time()
-frameCount = 0
 
-#Main Loop
-run = True
-while run:
-    #Displays Feed
-    frame = camera.get_frame()
-    if frame is not None:
-        cv.imshow('Camera Feed', frame)
+if __name__ == "__main__":
+    camera = Camera()
+    frameCount = 0
 
-    #Exit Feed
-    if cv.waitKey(1) & 0xFF == ord('q'):
-        run = False
+    #Main Loop
+    run = True
+    while run:
+        #Displays Feed
+        frame = camera.get_frame()
+        if frame is not None:
+            cv.imshow('Camera Feed', frame)
 
-    #FPS Calculation
-    currentTime = time.time()
-    fps = 1.0 / (currentTime - previousTime)
-    previousTime = currentTime
+        #Exit Feed
+        if cv.waitKey(1) & 0xFF == ord('q'):
+            run = False
 
-    #Frame Counter for Displaying FPS
-    frameCount += 1
-    if frameCount % 30 == 0:
-        print(f"FPS: {fps:.1f}")
+        #Frame Counter for Displaying FPS
+        frameCount += 1
+        if frameCount % 30 == 0:
+            print(f"FPS: {camera.fps:.1f}")
 
 
-camera.release()
+    camera.release()
