@@ -4,9 +4,11 @@ import time
 
 USE_PI_CAMERA = False
 
-#Camera Class
 class Camera:
-    #Initialize Camera 
+    """
+    Camera class for capturing frames from a camera.
+    This class supports both Pi camera and standard USB cameras.
+    """
     def __init__(self):
         self.prevTime = None
         self.fps = 0.0
@@ -17,8 +19,14 @@ class Camera:
         else:
             self.cap = cv.VideoCapture(0)
 
-    #Get a frame
     def get_frame(self):
+        """
+        Gets a frame from the camera
+        
+        Returns:
+            frame (numpy.ndarray): The captured frame from the camera.
+        """
+
         now = time.time()
 
         #Fps Calculation
@@ -38,8 +46,10 @@ class Camera:
 
             return frame      
 
-    #Release Camera
     def release(self):
+        """
+        Releases the camera resources and closes any OpenCV windows.
+        """
         self.cap.release()  
         cv.destroyAllWindows()
 
