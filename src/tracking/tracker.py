@@ -2,6 +2,10 @@ import numpy as np
 
 class Tracker:
     def __init__(self):
+        '''
+        Initializes the Tracker with a Kalman filter for tracking object positions.
+        '''
+        
         self.x = np.zeros((4, 1)) #State vector [x, y, dx, dy]
         self.P = np.eye(4) #Covariance matrix
         self.Q = np.diag([0.1, 0.1, 0.01, 0.01]) #Process noise covariance
@@ -20,6 +24,10 @@ class Tracker:
         self.track_age = 0
 
     def predict(self):
+        '''
+        Predicts the next state of the tracker using the Kalman filter equations.
+        '''
+
         self.x_predicted = self.F @ self.x #Predicted state estimate
         self.P_predicted = self.F @ self.P @ self.F.T + self.Q #Predicted covariance estimate
 
@@ -29,6 +37,10 @@ class Tracker:
         self.track_age = 0
 
     def update(self, cx, cy):
+        '''
+        Updates the tracker with a new measurement (centroid) using the Kalman filter equations.
+        '''
+
         if not self.initialized: #Initialize the state vector with the first detection
             self.x[0] = cx
             self.x[1] = cy
@@ -46,6 +58,13 @@ class Tracker:
         self.track_age += 1
 
     def get_state(self):
+        '''
+        Returns the current state of the tracker, including position, velocity, and track age.
+
+        Returns:
+            dict: A dictionary containing the current state of the tracker with keys "cx", "cy", "vx", "vy", and "track_age".
+        '''
+
         return {
             "cx": float(self.x[0,0]),
             "cy": float(self.x[1,0]),

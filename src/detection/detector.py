@@ -16,7 +16,7 @@ class Detector:
 
     def detect(self, frame):
         '''
-        Run interference on a single frame and return the filtered detections.
+        Run inference on a single frame and return the filtered detections.
         
         Args:
             frame: The input frame for object detection. Numpy array of shape (height, width, 3)
