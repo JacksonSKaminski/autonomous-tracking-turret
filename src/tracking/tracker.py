@@ -15,7 +15,9 @@ class Tracker:
 
         self.x_predicted = np.zeros((4, 1)) #Predicted state vector
         self.P_predicted = np.eye(4) #Predicted covariance matrix
+
         self.initialized = False
+        self.track_age = 0
 
     def predict(self):
         self.x_predicted = self.F @ self.x #Predicted state estimate
@@ -23,6 +25,8 @@ class Tracker:
 
         self.x = self.x_predicted
         self.P = self.P_predicted
+
+        self.track_age = 0
 
     def update(self, cx, cy):
         if not self.initialized: #Initialize the state vector with the first detection
@@ -38,6 +42,17 @@ class Tracker:
 
         self.x = self.x_predicted + K @ y #Update state estimate
         self.P = (np.eye(4) - K @ self.H) @ self.P_predicted #Update covariance estimate
+
+        self.track_age += 1
+
+    def get_state(self):
+        return {
+            "cx": float(self.x[0,0]),
+            "cy": float(self.x[1,0]),
+            "vx": float(self.x[2,0]),
+            "vy": float(self.x[3,0]),
+            "track_age": self.track_age
+        }
 
 
 if __name__ == "__main__":
