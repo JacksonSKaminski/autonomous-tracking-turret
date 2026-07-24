@@ -22,6 +22,7 @@ class Tracker:
 
         self.initialized = False
         self.track_age = 0
+        self.frames_since_detection = 0
 
     def predict(self):
         '''
@@ -35,6 +36,7 @@ class Tracker:
         self.P = self.P_predicted
 
         self.track_age = 0
+        self.frames_since_detection += 1
 
     def update(self, cx, cy):
         '''
@@ -56,6 +58,7 @@ class Tracker:
         self.P = (np.eye(4) - K @ self.H) @ self.P_predicted #Update covariance estimate
 
         self.track_age += 1
+        self.frames_since_detection = 0
 
     def get_state(self):
         '''
@@ -70,7 +73,8 @@ class Tracker:
             "cy": float(self.x[1,0]),
             "vx": float(self.x[2,0]),
             "vy": float(self.x[3,0]),
-            "track_age": self.track_age
+            "track_age": self.track_age,
+            "frames_since_detection": self.frames_since_detection
         }
 
 
