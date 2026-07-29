@@ -53,6 +53,21 @@ class Camera:
         self.cap.release()  
         cv.destroyAllWindows()
 
+    def get_resolution(self):
+        """
+        Gets the resolution of the camera
+        
+        Returns:
+            (width, height) (tuple): The width and height of the camera resolution.
+        """
+        if (USE_PI_CAMERA):
+            raise NotImplementedError("Pi camera not implemented yet")
+        
+        else:
+            width = int(self.cap.get(cv.CAP_PROP_FRAME_WIDTH))
+            height = int(self.cap.get(cv.CAP_PROP_FRAME_HEIGHT))
+            return (width, height)
+
 
 if __name__ == "__main__":
     camera = Camera()
