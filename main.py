@@ -1,29 +1,35 @@
 from src.utils.camera import Camera
 from src.detection.detector import Detector
 from src.tracking.tracker import Tracker
-from src.control.roe import ROE as roe
+from src.control.roe import ROE
+from src.control.pid import PID
 import cv2 as cv
 
-from utils.coordinate import pixel_error_to_angle
+from src.utils.coordinate import pixel_error_to_angle
 
-camera = Camera()
+camera = Camera() #Initialize the camera
 detector = Detector("yolov8n.pt")  # Load the YOLOv8 model
 tracker = Tracker()  # Initialize the tracker
+roe = ROE()  # Initialize the ROE
+
+pan_pid = PID(kp=0.1, ki=0.0, kd=0.05)  # Initialize PID controller for pan
+tilt_pid = PID(kp=0.1, ki=0.0, kd=0.05)  # Initialize PID controller for tilt
 
 frame_width, frame_height = camera.get_resolution()
 
+prev_roe_state = "SEARCH"
+
 run = True
 while run:
+    #Gets frame from camera
     frame = camera.get_frame()
     if frame is None:
         continue
 
+    #Run Interference and return detections
     detections = detector.detect(frame)
 
     tracker.predict()
-
-    state = roe.update_state(detections, tracker.get_state())
-    print(state)
 
     if detections:
         best = max(detections, key=lambda x: x["confidence"])  # Get the detection with the highest confidence
@@ -33,12 +39,31 @@ while run:
         cv.circle(frame, (int(best["centroid"][0]), int(best["centroid"][1])), 5, (0, 0, 255), -1)
         cv.putText(frame, f"Class: {best['class_name']}, Confidence: {best['confidence']:.2f}", (int(best["bounding_box"][0]), int(best["bounding_box"][1]) - 10), cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-    state = roe.update_state(detections, tracker.get_state())
+    tracker_state = tracker.get_state()
+    print(f"Tracker State: {tracker_state}")
 
-    error_x = state["cx"] - frame_width / 2
-    error_y = state["cy"] - frame_height / 2
+    roe_state = roe.update_state(detections, tracker_state)
+    print(f"ROE State: {roe_state}")
+
+    if roe_state == "SEARCH" and prev_roe_state == "HOLD":
+        tracker.reset()
+
+    error_x = tracker_state["cx"] - frame_width / 2
+    error_y = tracker_state["cy"] - frame_height / 2
+
     angle_x, angle_y = pixel_error_to_angle(error_x, error_y, frame_width, frame_height)
     print(f"Pan error: {angle_x:.2f}°, Tilt error: {angle_y:.2f}°")
+
+    if roe_state == "SEARCH":
+        pan_pid.reset()
+        tilt_pid.reset()
+    elif roe_state == "TRACK":
+        pan_output = pan_pid.update(angle_x)
+        tilt_output = tilt_pid.update(angle_y)
+
+        print(f"Pan PID output: {pan_output:.2f}, Tilt PID output: {tilt_output:.2f}")
+
+    prev_roe_state = roe_state
 
     cv.imshow('Camera Feed', frame)
 

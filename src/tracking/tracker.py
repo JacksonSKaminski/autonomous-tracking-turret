@@ -35,7 +35,6 @@ class Tracker:
         self.x = self.x_predicted
         self.P = self.P_predicted
 
-        self.track_age = 0
         self.frames_since_detection += 1
 
     def update(self, cx, cy):
@@ -76,6 +75,9 @@ class Tracker:
             "track_age": self.track_age,
             "frames_since_detection": self.frames_since_detection
         }
+
+    def reset(self):
+        self.track_age = 0 
 
 
 if __name__ == "__main__":
