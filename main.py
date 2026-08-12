@@ -6,6 +6,7 @@ from src.detection.detector import Detector
 from src.tracking.tracker import Tracker
 from src.control.roe import ROE
 from src.control.pid import PID
+from src.utils.telemetry import TelemetryLogger
 
 from src.utils.coordinate import pixel_error_to_angle
 from src.utils.hud import draw_hud
@@ -14,6 +15,7 @@ camera = Camera() #Initialize the camera
 detector = Detector("yolov8n.pt")  # Load the YOLOv8 model
 tracker = Tracker()  # Initialize the tracker
 roe = ROE()  # Initialize the ROE
+telemetry_logger = TelemetryLogger()  # Initialize the telemetry logger
 
 pan_pid = PID(kp=0.1, ki=0.0, kd=0.05)  # Initialize PID controller for pan
 tilt_pid = PID(kp=0.1, ki=0.0, kd=0.05)  # Initialize PID controller for tilt
@@ -71,6 +73,7 @@ while run:
     prev_roe_state = roe_state
     latency = (time.time() - loop_start_time) * 1000  # Calculate latency in milliseconds
 
+    telemetry_logger.log(roe_state, tracker_state, angle_x, angle_y, pan_output if roe_state == "TRACK" else 0, tilt_output if roe_state == "TRACK" else 0, latency)
     draw_hud(frame, roe_state, tracker_state, angle_x, angle_y, pan_output if roe_state == "TRACK" else 0, tilt_output if roe_state == "TRACK" else 0, latency)
 
     cv.imshow('Camera Feed', frame)
@@ -79,3 +82,4 @@ while run:
         run = False
 
 camera.release()
+telemetry_logger.close()
