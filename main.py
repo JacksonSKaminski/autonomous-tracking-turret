@@ -1,11 +1,14 @@
+import time
+import cv2 as cv
+
 from src.utils.camera import Camera
 from src.detection.detector import Detector
 from src.tracking.tracker import Tracker
 from src.control.roe import ROE
 from src.control.pid import PID
-import cv2 as cv
 
 from src.utils.coordinate import pixel_error_to_angle
+from src.utils.hud import draw_hud
 
 camera = Camera() #Initialize the camera
 detector = Detector("yolov8n.pt")  # Load the YOLOv8 model
@@ -21,6 +24,8 @@ prev_roe_state = "SEARCH"
 
 run = True
 while run:
+    loop_start_time = time.time()  # Start time for latency calculation
+
     #Gets frame from camera
     frame = camera.get_frame()
     if frame is None:
@@ -33,11 +38,11 @@ while run:
 
     if detections:
         best = max(detections, key=lambda x: x["confidence"])  # Get the detection with the highest confidence
-        tracker.update(best["centroid"][0], best["centroid"][1])  
+        tracker.update(best["centroid"][0], best["centroid"][1])  # Update Tracker with new detection
 
-        cv.rectangle(frame, (int(best["bounding_box"][0]), int(best["bounding_box"][1])),                   (int(best["bounding_box"][2]), int(best["bounding_box"][3])), (0, 255, 0), 2)
+        cv.rectangle(frame, (int(best["bounding_box"][0]), int(best["bounding_box"][1])), (int(best["bounding_box"][2]), int(best["bounding_box"][3])), (0, 255, 0), 2)
         cv.circle(frame, (int(best["centroid"][0]), int(best["centroid"][1])), 5, (0, 0, 255), -1)
-        cv.putText(frame, f"Class: {best['class_name']}, Confidence: {best['confidence']:.2f}", (int(best["bounding_box"][0]), int(best["bounding_box"][1]) - 10), cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+        cv.putText(frame, f"Class: {best['class_name']}, Confidence: {best['confidence']:.2f}", (int(best["bounding_box"][0]), int(best["bounding_box"][1]) - 10), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
     tracker_state = tracker.get_state()
     print(f"Tracker State: {tracker_state}")
@@ -64,6 +69,9 @@ while run:
         print(f"Pan PID output: {pan_output:.2f}, Tilt PID output: {tilt_output:.2f}")
 
     prev_roe_state = roe_state
+    latency = (time.time() - loop_start_time) * 1000  # Calculate latency in milliseconds
+
+    draw_hud(frame, roe_state, tracker_state, angle_x, angle_y, pan_output if roe_state == "TRACK" else 0, tilt_output if roe_state == "TRACK" else 0, latency)
 
     cv.imshow('Camera Feed', frame)
 
