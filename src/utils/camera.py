@@ -4,19 +4,24 @@ import time
 
 USE_PI_CAMERA = True
 
-if USE_PI_CAMERA:
+try:
     from picamera2 import Picamera2
+    PICAMERA2_AVAILABLE = True
+except ImportError:
+    PICAMERA2_AVAILABLE = False
+    print("Picamera2 library not found. Falling back to standard USB camera.")
 
 class Camera:
     """
     Camera class for capturing frames from a camera.
     This class supports both Pi camera and standard USB cameras.
     """
-    def __init__(self):
+    def __init__(self, USE_PI_CAMERA=False):
         self.prevTime = None
         self.fps = 0.0
+        self.USE_PI_CAMERA = USE_PI_CAMERA and PICAMERA2_AVAILABLE
 
-        if (USE_PI_CAMERA):
+        if (self.USE_PI_CAMERA):
             self.picam2 = Picamera2()
 
             config = self.picam2.create_video_configuration(main={"size": (640, 480), "format": "RGB888"})
@@ -42,7 +47,7 @@ class Camera:
             self.fps = 1.0 / (now - self.prevTime)
         self.prevTime = now
         
-        if (USE_PI_CAMERA):
+        if (self.USE_PI_CAMERA):
             frame = self.picam2.capture_array()
 
             frame = cv.cvtColor(frame, cv.COLOR_RGB2BGR) # Convert RGB to BGR for OpenCV compatibility
@@ -63,7 +68,7 @@ class Camera:
         Releases the camera resources and closes any OpenCV windows.
         """
 
-        if (USE_PI_CAMERA):
+        if (self.USE_PI_CAMERA):
             self.picam2.stop()
         else:
             self.cap.release()  
@@ -77,7 +82,7 @@ class Camera:
         Returns:
             (width, height) (tuple): The width and height of the camera resolution.
         """
-        if (USE_PI_CAMERA):
+        if (self.USE_PI_CAMERA):
             return (640, 480)
         
         else:
