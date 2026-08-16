@@ -2,7 +2,10 @@ import cv2 as cv
 import numpy as np
 import time
 
-USE_PI_CAMERA = False
+USE_PI_CAMERA = True
+
+if USE_PI_CAMERA:
+    from picamera2 import Picamera2
 
 class Camera:
     """
@@ -14,8 +17,13 @@ class Camera:
         self.fps = 0.0
 
         if (USE_PI_CAMERA):
-            raise NotImplementedError("Pi camera not implemented yet")
-        
+            self.picam2 = Picamera2()
+
+            config = self.picam2.create_video_configuration(main={"size": (640, 480), "format": "RGB888"})
+            self.picam2.configure(config)
+
+            self.picam2.start()
+
         else:
             self.cap = cv.VideoCapture(0)
 
@@ -35,7 +43,11 @@ class Camera:
         self.prevTime = now
         
         if (USE_PI_CAMERA):
-            raise NotImplementedError("Pi camera not implemented yet")
+            frame = self.picam2.capture_array()
+
+            frame = cv.cvtColor(frame, cv.COLOR_RGB2BGR) # Convert RGB to BGR for OpenCV compatibility
+
+            return frame
         
         else:
             ret, frame = self.cap.read()
@@ -50,7 +62,12 @@ class Camera:
         """
         Releases the camera resources and closes any OpenCV windows.
         """
-        self.cap.release()  
+
+        if (USE_PI_CAMERA):
+            self.picam2.stop()
+        else:
+            self.cap.release()  
+            
         cv.destroyAllWindows()
 
     def get_resolution(self):
@@ -61,7 +78,7 @@ class Camera:
             (width, height) (tuple): The width and height of the camera resolution.
         """
         if (USE_PI_CAMERA):
-            raise NotImplementedError("Pi camera not implemented yet")
+            return (640, 480)
         
         else:
             width = int(self.cap.get(cv.CAP_PROP_FRAME_WIDTH))
@@ -71,7 +88,6 @@ class Camera:
 
 if __name__ == "__main__":
     camera = Camera()
-    frameCount = 0
 
     #Main Loop
     run = True
@@ -79,16 +95,12 @@ if __name__ == "__main__":
         #Displays Feed
         frame = camera.get_frame()
         if frame is not None:
-            cv.imshow('Camera Feed', frame)
+            if USE_PI_CAMERA:    
+                cv.imshow('Camera Feed', frame)
+            print(f"Frame Shape: {frame.shape}, FPS: {camera.fps:.1f}")
 
         #Exit Feed
         if cv.waitKey(1) & 0xFF == ord('q'):
             run = False
-
-        #Frame Counter for Displaying FPS
-        frameCount += 1
-        if frameCount % 30 == 0:
-            print(f"FPS: {camera.fps:.1f}")
-
 
     camera.release()
