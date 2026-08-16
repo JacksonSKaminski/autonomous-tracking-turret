@@ -5,3 +5,5 @@ logs/
 *.log
 *.pt
 turret-env/
+yolov8n_ncnn_model/
+*.ncnn
