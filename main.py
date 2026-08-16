@@ -7,20 +7,34 @@ from src.tracking.tracker import Tracker
 from src.control.roe import ROE
 from src.control.pid import PID
 from src.utils.telemetry import TelemetryLogger
+from src.control.servo import ServoController
 
 from src.utils.coordinate import pixel_error_to_angle
 from src.utils.hud import draw_hud
 
-camera = Camera() #Initialize the camera
-detector = Detector("yolov8n.pt")  # Load the YOLOv8 model
+import platform
+
+IS_PI = platform.machine() in ('armv7l', 'aarch64')
+USE_SERVOS = IS_PI  # Set to False to disable servo control for testing
+
+camera = Camera(USE_PI_CAMERA=IS_PI) #Initialize the camera
+detector = Detector("yolov8n_ncnn_model")  # Load the YOLOv8 model
 tracker = Tracker()  # Initialize the tracker
 roe = ROE()  # Initialize the ROE
 telemetry_logger = TelemetryLogger()  # Initialize the telemetry logger
 
-#i2c & PCA9685 setup
-i2c = busio.I2C(board.SCL, board.SDA)
-pca = PCA9685(i2c)
-pca.frequency = 50
+if USE_SERVOS:
+    import busio
+    import board
+    from adafruit_pca9685 import PCA9685
+
+    #i2c & PCA9685 setup
+    i2c = busio.I2C(board.SCL, board.SDA)
+    pca = PCA9685(i2c)
+    pca.frequency = 50
+
+    pan_servo_controller = ServoController(pca, channel=0)
+    tilt_servo_controller = ServoController(pca, channel=1)
 
 
 pan_pid = PID(kp=0.1, ki=0.0, kd=0.05)  # Initialize PID controller for pan
@@ -31,61 +45,71 @@ frame_width, frame_height = camera.get_resolution()
 prev_roe_state = "SEARCH"
 
 run = True
-while run:
-    loop_start_time = time.time()  # Start time for latency calculation
 
-    #Gets frame from camera
-    frame = camera.get_frame()
-    if frame is None:
-        continue
+try:
+    while run:
+        loop_start_time = time.time()  # Start time for latency calculation
 
-    #Run Interference and return detections
-    detections = detector.detect(frame)
+        #Gets frame from camera
+        frame = camera.get_frame()
+        if frame is None:
+            continue
 
-    tracker.predict()
+        #Run Interference and return detections
+        detections = detector.detect(frame)
 
-    if detections:
-        best = max(detections, key=lambda x: x["confidence"])  # Get the detection with the highest confidence
-        tracker.update(best["centroid"][0], best["centroid"][1])  # Update Tracker with new detection
+        tracker.predict()
 
-        cv.rectangle(frame, (int(best["bounding_box"][0]), int(best["bounding_box"][1])), (int(best["bounding_box"][2]), int(best["bounding_box"][3])), (0, 255, 0), 2)
-        cv.circle(frame, (int(best["centroid"][0]), int(best["centroid"][1])), 5, (0, 0, 255), -1)
-        cv.putText(frame, f"Class: {best['class_name']}, Confidence: {best['confidence']:.2f}", (int(best["bounding_box"][0]), int(best["bounding_box"][1]) - 10), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        if detections:
+            best = max(detections, key=lambda x: x["confidence"])  # Get the detection with the highest confidence
+            tracker.update(best["centroid"][0], best["centroid"][1])  # Update Tracker with new detection
 
-    tracker_state = tracker.get_state()
-    print(f"Tracker State: {tracker_state}")
+            cv.rectangle(frame, (int(best["bounding_box"][0]), int(best["bounding_box"][1])), (int(best["bounding_box"][2]), int(best["bounding_box"][3])), (0, 255, 0), 2)
+            cv.circle(frame, (int(best["centroid"][0]), int(best["centroid"][1])), 5, (0, 0, 255), -1)
+            cv.putText(frame, f"Class: {best['class_name']}, Confidence: {best['confidence']:.2f}", (int(best["bounding_box"][0]), int(best["bounding_box"][1]) - 10), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-    roe_state = roe.update_state(detections, tracker_state)
-    print(f"ROE State: {roe_state}")
+        tracker_state = tracker.get_state()
+        print(f"Tracker State: {tracker_state}")
 
-    if roe_state == "SEARCH" and prev_roe_state == "HOLD":
-        tracker.reset()
+        roe_state = roe.update_state(detections, tracker_state)
+        print(f"ROE State: {roe_state}")
 
-    error_x = tracker_state["cx"] - frame_width / 2
-    error_y = tracker_state["cy"] - frame_height / 2
+        if roe_state == "SEARCH" and prev_roe_state == "HOLD":
+            tracker.reset()
 
-    angle_x, angle_y = pixel_error_to_angle(error_x, error_y, frame_width, frame_height)
-    print(f"Pan error: {angle_x:.2f}°, Tilt error: {angle_y:.2f}°")
+        error_x = tracker_state["cx"] - frame_width / 2
+        error_y = tracker_state["cy"] - frame_height / 2
 
-    if roe_state == "SEARCH":
-        pan_pid.reset()
-        tilt_pid.reset()
-    elif roe_state == "TRACK":
-        pan_output = pan_pid.update(angle_x)
-        tilt_output = tilt_pid.update(angle_y)
+        angle_x, angle_y = pixel_error_to_angle(error_x, error_y, frame_width, frame_height)
+        print(f"Pan error: {angle_x:.2f}°, Tilt error: {angle_y:.2f}°")
 
-        print(f"Pan PID output: {pan_output:.2f}, Tilt PID output: {tilt_output:.2f}")
+        if roe_state == "SEARCH":
+            pan_pid.reset()
+            tilt_pid.reset()
+        elif roe_state == "TRACK":
+            pan_output = pan_pid.update(angle_x)
+            tilt_output = tilt_pid.update(angle_y)
 
-    prev_roe_state = roe_state
-    latency = (time.time() - loop_start_time) * 1000  # Calculate latency in milliseconds
+            if USE_SERVOS:
+                pan_servo_controller.update(pan_output)
+                tilt_servo_controller.update(tilt_output)
 
-    telemetry_logger.log(roe_state, tracker_state, angle_x, angle_y, pan_output if roe_state == "TRACK" else 0, tilt_output if roe_state == "TRACK" else 0, latency)
-    draw_hud(frame, roe_state, tracker_state, angle_x, angle_y, pan_output if roe_state == "TRACK" else 0, tilt_output if roe_state == "TRACK" else 0, latency)
+            print(f"Pan PID output: {pan_output:.2f}, Tilt PID output: {tilt_output:.2f}")
 
-    cv.imshow('Camera Feed', frame)
+        prev_roe_state = roe_state
+        latency = (time.time() - loop_start_time) * 1000  # Calculate latency in milliseconds
 
-    if cv.waitKey(1) & 0xFF == ord('q'):
-        run = False
+        telemetry_logger.log(roe_state, tracker_state, angle_x, angle_y, pan_output if roe_state == "TRACK" else 0, tilt_output if roe_state == "TRACK" else 0, latency)
+        draw_hud(frame, roe_state, tracker_state, angle_x, angle_y, pan_output if roe_state == "TRACK" else 0, tilt_output if roe_state == "TRACK" else 0, latency)
 
-camera.release()
-telemetry_logger.close()
+        if not IS_PI:
+            cv.imshow('Camera Feed', frame)
+
+            if cv.waitKey(1) & 0xFF == ord('q'):
+                run = False
+
+except KeyboardInterrupt:
+    pass
+finally:
+    camera.release()
+    telemetry_logger.close()
