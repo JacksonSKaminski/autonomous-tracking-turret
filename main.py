@@ -17,6 +17,12 @@ tracker = Tracker()  # Initialize the tracker
 roe = ROE()  # Initialize the ROE
 telemetry_logger = TelemetryLogger()  # Initialize the telemetry logger
 
+#i2c & PCA9685 setup
+i2c = busio.I2C(board.SCL, board.SDA)
+pca = PCA9685(i2c)
+pca.frequency = 50
+
+
 pan_pid = PID(kp=0.1, ki=0.0, kd=0.05)  # Initialize PID controller for pan
 tilt_pid = PID(kp=0.1, ki=0.0, kd=0.05)  # Initialize PID controller for tilt
 
